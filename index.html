@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TRAPX — Channel 11</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050514;
+      --glow: #00ffff;
+      --accent: #00ff66;
+      --frame: #222;
+      --screen: #001111;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: "Courier New", Courier, monospace;
+      overflow: hidden;
+      color: var(--glow);
+    }
+
+    .stage {
+      width: min(92vw, 920px);
+      text-align: center;
+      position: relative;
+    }
+
+    .tv-button {
+      position: relative;
+      width: min(92vw, 820px);
+      aspect-ratio: 14 / 9;
+      background: var(--frame);
+      border-radius: 18px;
+      border: 2px solid #333;
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.25), inset 0 0 20px #000;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.2s ease;
+      padding: 0;
+    }
+
+    .tv-button:hover,
+    .tv-button:focus-visible {
+      transform: scale(1.01);
+      box-shadow: 0 0 40px rgba(0, 255, 255, 0.45), inset 0 0 24px #000;
+      outline: none;
+    }
+
+    .tv-frame {
+      position: absolute;
+      left: 4%;
+      top: 5%;
+      right: 4%;
+      bottom: 14%;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 2px solid #111;
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 40%, rgba(0, 255, 255, 0.2), transparent 60%),
+        var(--screen);
+    }
+
+    .static {
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(255, 255, 255, 0.05) 0px,
+        rgba(255, 255, 255, 0.05) 1px,
+        rgba(0, 0, 0, 0) 2px
+      );
+      animation: noise 0.18s steps(2) infinite;
+      opacity: 0.5;
+    }
+
+    .scanlines {
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.22) 0px,
+        rgba(0, 0, 0, 0.22) 1px,
+        rgba(0, 0, 0, 0) 4px
+      );
+      mix-blend-mode: multiply;
+      opacity: 0.7;
+    }
+
+    .channel {
+      position: absolute;
+      top: 14px;
+      right: 18px;
+      font-size: clamp(18px, 3vw, 28px);
+      color: var(--accent);
+      text-shadow: 0 0 12px rgba(0, 255, 102, 0.8);
+    }
+
+    .title {
+      position: absolute;
+      top: 28%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: clamp(48px, 10vw, 96px);
+      letter-spacing: 8px;
+      color: var(--glow);
+      text-shadow: 0 0 20px rgba(0, 255, 255, 0.7);
+    }
+
+    .subtitle {
+      position: absolute;
+      top: 48%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: clamp(16px, 3vw, 26px);
+      color: var(--accent);
+    }
+
+    .cta {
+      position: absolute;
+      bottom: 18%;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 14px 38px;
+      border: 2px solid var(--accent);
+      color: var(--accent);
+      font-size: clamp(14px, 2.4vw, 22px);
+      letter-spacing: 2px;
+      text-shadow: 0 0 8px rgba(0, 255, 102, 0.8);
+      animation: flicker 1.6s infinite;
+      background: rgba(0, 0, 0, 0.35);
+    }
+
+    .tv-base {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 12%;
+      background: linear-gradient(180deg, #141414, #0b0b0b);
+      border-top: 2px solid #333;
+      border-radius: 0 0 18px 18px;
+    }
+
+    .hint {
+      margin-top: 18px;
+      font-size: 12px;
+      opacity: 0.6;
+      letter-spacing: 2px;
+    }
+
+    @keyframes noise {
+      0% {
+        background-position: 0 0;
+      }
+      100% {
+        background-position: 0 10px;
+      }
+    }
+
+    @keyframes flicker {
+      0% {
+        opacity: 1;
+      }
+      5% {
+        opacity: 0.6;
+      }
+      10% {
+        opacity: 1;
+      }
+      15% {
+        opacity: 0.8;
+      }
+      100% {
+        opacity: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <button class="tv-button" type="button" aria-label="Enter TRAPX broadcast">
+      <span class="tv-frame">
+        <span class="screen">
+          <span class="channel">11</span>
+          <span class="title">TRAPX</span>
+          <span class="subtitle">CHANNEL 11</span>
+          <span class="cta">[ TAKE CONTROL ]</span>
+          <span class="static" aria-hidden="true"></span>
+          <span class="scanlines" aria-hidden="true"></span>
+        </span>
+      </span>
+      <span class="tv-base"></span>
+    </button>
+    <div class="hint">CLICK THE TV TO TUNE IN</div>
+  </main>
+
+  <script>
+    const tvButton = document.querySelector(".tv-button");
+    const staticLayer = document.querySelector(".static");
+
+    tvButton.addEventListener("click", () => {
+      staticLayer.style.animation = "noise 0.05s steps(2) infinite";
+      setTimeout(() => {
+        window.location.href = "trapx_v0.html";
+      }, 420);
+    });
+  </script>
+</body>
+</html>
