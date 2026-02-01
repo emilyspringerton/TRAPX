@@ -275,3 +275,7 @@ Final Lock Statement
 TRAPX v1 is frozen as a single-neighborhood systemic simulation with a card-based intervention interface.
 
 Anything not explicitly listed above is out of scope.
+
+
+TRAPX factions are fictional systems inspired by historical dynamics.
+They do not represent real ethnic, religious, or cultural groups.
