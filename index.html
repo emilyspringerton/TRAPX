@@ -1,227 +1,359 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TRAPX — Channel 11</title>
-  <style>
-    :root {
-      color-scheme: dark;
-      --bg: #050514;
-      --glow: #00ffff;
-      --accent: #00ff66;
-      --frame: #222;
-      --screen: #001111;
-    }
+<meta charset="utf-8">
+<title>TRAPX v0 - Urban Systems Prototype</title>
 
-    * {
-      box-sizing: border-box;
-    }
+<style>
 
-    html,
-    body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      background: var(--bg);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: "Courier New", Courier, monospace;
-      overflow: hidden;
-      color: var(--glow);
-    }
+/* ================================
+   GLOBAL RESET (OLD SCHOOL)
+================================ */
 
-    .stage {
-      width: min(92vw, 920px);
-      text-align: center;
-      position: relative;
-    }
+html, body {
+    margin: 0;
+    padding: 0;
+    background: #050514;
+    color: #00ffff;
+    font-family: monospace;
+    overflow: hidden;
+}
 
-    .tv-button {
-      position: relative;
-      width: min(92vw, 820px);
-      aspect-ratio: 14 / 9;
-      background: var(--frame);
-      border-radius: 18px;
-      border: 2px solid #333;
-      box-shadow: 0 0 30px rgba(0, 255, 255, 0.25), inset 0 0 20px #000;
-      cursor: pointer;
-      transition: transform 0.15s ease, box-shadow 0.2s ease;
-      padding: 0;
-    }
+/* ================================
+   HUD
+================================ */
 
-    .tv-button:hover,
-    .tv-button:focus-visible {
-      transform: scale(1.01);
-      box-shadow: 0 0 40px rgba(0, 255, 255, 0.45), inset 0 0 24px #000;
-      outline: none;
-    }
+#hud {
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    padding: 8px;
+    background: rgba(0,0,0,0.6);
+    border: 1px solid #00ffff;
+    font-size: 12px;
+}
 
-    .tv-frame {
-      position: absolute;
-      left: 4%;
-      top: 5%;
-      right: 4%;
-      bottom: 14%;
-      background: #000;
-      border-radius: 12px;
-      overflow: hidden;
-      border: 2px solid #111;
-    }
+/* ================================
+   GRID
+================================ */
 
-    .screen {
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(circle at 50% 40%, rgba(0, 255, 255, 0.2), transparent 60%),
-        var(--screen);
-    }
+#world {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+}
 
-    .static {
-      position: absolute;
-      inset: 0;
-      background: repeating-linear-gradient(
-        0deg,
-        rgba(255, 255, 255, 0.05) 0px,
-        rgba(255, 255, 255, 0.05) 1px,
-        rgba(0, 0, 0, 0) 2px
-      );
-      animation: noise 0.18s steps(2) infinite;
-      opacity: 0.5;
-    }
+.cell {
+    position: absolute;
+    box-sizing: border-box;
+    border: 1px solid rgba(0,255,255,0.15);
+    transition: background 0.6s;
+}
 
-    .scanlines {
-      position: absolute;
-      inset: 0;
-      background: repeating-linear-gradient(
-        to bottom,
-        rgba(0, 0, 0, 0.22) 0px,
-        rgba(0, 0, 0, 0.22) 1px,
-        rgba(0, 0, 0, 0) 4px
-      );
-      mix-blend-mode: multiply;
-      opacity: 0.7;
-    }
+/* states */
 
-    .channel {
-      position: absolute;
-      top: 14px;
-      right: 18px;
-      font-size: clamp(18px, 3vw, 28px);
-      color: var(--accent);
-      text-shadow: 0 0 12px rgba(0, 255, 102, 0.8);
-    }
+.cell.neutral { background: #050505; }
+.cell.player  { background: #ff00cc; }
+.cell.enemy   { background: #00ff66; }
+.cell.corrupt { background: #400014; }
 
-    .title {
-      position: absolute;
-      top: 28%;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: clamp(48px, 10vw, 96px);
-      letter-spacing: 8px;
-      color: var(--glow);
-      text-shadow: 0 0 20px rgba(0, 255, 255, 0.7);
-    }
+/* ================================
+   ENTITIES
+================================ */
 
-    .subtitle {
-      position: absolute;
-      top: 48%;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: clamp(16px, 3vw, 26px);
-      color: var(--accent);
-    }
+.entity {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: white;
+    border-radius: 2px;
+    pointer-events: none;
+}
 
-    .cta {
-      position: absolute;
-      bottom: 18%;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 14px 38px;
-      border: 2px solid var(--accent);
-      color: var(--accent);
-      font-size: clamp(14px, 2.4vw, 22px);
-      letter-spacing: 2px;
-      text-shadow: 0 0 8px rgba(0, 255, 102, 0.8);
-      animation: flicker 1.6s infinite;
-      background: rgba(0, 0, 0, 0.35);
-    }
+.entity.citizen { background:#ffffff; }
+.entity.runner  { background:#00ffff; }
+.entity.masked  { background:#ff0000; }
 
-    .tv-base {
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      height: 12%;
-      background: linear-gradient(180deg, #141414, #0b0b0b);
-      border-top: 2px solid #333;
-      border-radius: 0 0 18px 18px;
-    }
+/* ================================
+   DAY NIGHT
+================================ */
 
-    .hint {
-      margin-top: 18px;
-      font-size: 12px;
-      opacity: 0.6;
-      letter-spacing: 2px;
-    }
+#overlay {
+    position:absolute;
+    left:0;
+    top:0;
+    width:100%;
+    height:100%;
+    pointer-events:none;
+    background: rgba(0,0,0,0);
+    transition: background 2s;
+}
 
-    @keyframes noise {
-      0% {
-        background-position: 0 0;
-      }
-      100% {
-        background-position: 0 10px;
-      }
-    }
-
-    @keyframes flicker {
-      0% {
-        opacity: 1;
-      }
-      5% {
-        opacity: 0.6;
-      }
-      10% {
-        opacity: 1;
-      }
-      15% {
-        opacity: 0.8;
-      }
-      100% {
-        opacity: 1;
-      }
-    }
-  </style>
+</style>
 </head>
+
 <body>
-  <main class="stage">
-    <button class="tv-button" type="button" aria-label="Enter TRAPX broadcast">
-      <span class="tv-frame">
-        <span class="screen">
-          <span class="channel">11</span>
-          <span class="title">TRAPX</span>
-          <span class="subtitle">CHANNEL 11</span>
-          <span class="cta">[ TAKE CONTROL ]</span>
-          <span class="static" aria-hidden="true"></span>
-          <span class="scanlines" aria-hidden="true"></span>
-        </span>
-      </span>
-      <span class="tv-base"></span>
-    </button>
-    <div class="hint">CLICK THE TV TO TUNE IN</div>
-  </main>
 
-  <script>
-    const tvButton = document.querySelector(".tv-button");
-    const staticLayer = document.querySelector(".static");
+<div id="hud">
+TRAPX v0<br>
+Tick: <span id="tick">0</span><br>
+Time: <span id="time">Day</span><br>
+Citizens: <span id="citizens">0</span>
+</div>
 
-    tvButton.addEventListener("click", () => {
-      staticLayer.style.animation = "noise 0.05s steps(2) infinite";
-      setTimeout(() => {
-        window.location.href = "trapx_v0.html";
-      }, 420);
+<div id="world"></div>
+<div id="overlay"></div>
+
+<script>
+
+/* ================================
+   CONSTANTS
+================================ */
+
+const GRID_SIZE = 20;
+const CELL_SIZE = 40;
+const SIM_INTERVAL = 800;
+
+const STATE_NEUTRAL = 0;
+const STATE_PLAYER  = 1;
+const STATE_ENEMY   = 2;
+const STATE_CORRUPT = 3;
+
+/* ================================
+   DATA STRUCTURES
+================================ */
+
+var grid = [];
+var entities = [];
+
+var sim_tick = 0;
+var day_time = 0;
+
+/* ================================
+   SIM HOOKS (EXPOSED)
+================================ */
+
+var sim_weights = {
+    convert_threshold: 3,
+    corruption_spread: 4,
+    growth_chance: 0.05
+};
+
+window.TRAPX_SIM_SET_WEIGHT = function(name,value){
+    sim_weights[name] = value;
+};
+
+window.TRAPX_SIM_SPAWN_ENTITY = function(type){
+    spawn_entity(type);
+};
+
+/* ================================
+   INIT
+================================ */
+
+var world = document.getElementById("world");
+
+function init_grid(){
+    for(let y=0;y<GRID_SIZE;y++){
+        grid[y]=[];
+        for(let x=0;x<GRID_SIZE;x++){
+
+            let cell = {
+                state: STATE_NEUTRAL,
+                population: Math.random()*120,
+                el: document.createElement("div")
+            };
+
+            cell.el.className="cell neutral";
+            cell.el.style.width = CELL_SIZE+"px";
+            cell.el.style.height = CELL_SIZE+"px";
+            cell.el.style.left = (x*CELL_SIZE)+"px";
+            cell.el.style.top  = (y*CELL_SIZE)+"px";
+
+            world.appendChild(cell.el);
+
+            grid[y][x]=cell;
+        }
+    }
+
+    // seed some pressure
+
+    grid[5][5].state = STATE_PLAYER;
+    grid[14][12].state = STATE_ENEMY;
+    grid[10][3].state = STATE_CORRUPT;
+
+    refresh_grid();
+}
+
+function spawn_entity(type){
+    let e = {
+        type:type,
+        x: Math.random()*GRID_SIZE*CELL_SIZE,
+        y: Math.random()*GRID_SIZE*CELL_SIZE,
+        vx: (Math.random()-0.5)*1.5,
+        vy: (Math.random()-0.5)*1.5,
+        el: document.createElement("div")
+    };
+
+    e.el.className="entity "+type;
+    world.appendChild(e.el);
+    entities.push(e);
+}
+
+/* ================================
+   GRID LOGIC
+================================ */
+
+function get_neighbors(x,y){
+    let list=[];
+    for(let dy=-1;dy<=1;dy++){
+        for(let dx=-1;dx<=1;dx++){
+            if(dx==0 && dy==0) continue;
+            let nx=x+dx, ny=y+dy;
+            if(nx>=0 && ny>=0 && nx<GRID_SIZE && ny<GRID_SIZE){
+                list.push(grid[ny][nx]);
+            }
+        }
+    }
+    return list;
+}
+
+function sim_update_grid(){
+
+    let changes=[];
+
+    for(let y=0;y<GRID_SIZE;y++){
+        for(let x=0;x<GRID_SIZE;x++){
+
+            let cell = grid[y][x];
+            let neighbors = get_neighbors(x,y);
+
+            let counts=[0,0,0,0];
+
+            neighbors.forEach(n=>{
+                counts[n.state]++;
+            });
+
+            if(cell.state===STATE_NEUTRAL){
+                if(counts[STATE_PLAYER]>=sim_weights.convert_threshold)
+                    changes.push([cell,STATE_PLAYER]);
+
+                if(counts[STATE_ENEMY]>=sim_weights.convert_threshold)
+                    changes.push([cell,STATE_ENEMY]);
+
+                if(counts[STATE_CORRUPT]>=sim_weights.corruption_spread)
+                    changes.push([cell,STATE_CORRUPT]);
+            }
+
+            if(Math.random()<sim_weights.growth_chance){
+                cell.population+=10;
+            }
+
+            if(cell.population>220){
+                cell.population=100;
+            }
+        }
+    }
+
+    changes.forEach(c=>{
+        c[0].state=c[1];
     });
-  </script>
+
+    refresh_grid();
+}
+
+function refresh_grid(){
+    for(let y=0;y<GRID_SIZE;y++){
+        for(let x=0;x<GRID_SIZE;x++){
+            let c=grid[y][x];
+            c.el.className="cell "+
+                (c.state==STATE_NEUTRAL?"neutral":
+                c.state==STATE_PLAYER?"player":
+                c.state==STATE_ENEMY?"enemy":"corrupt");
+
+            let intensity = Math.min(1,c.population/200);
+            c.el.style.opacity = 0.4+intensity*0.6;
+        }
+    }
+}
+
+/* ================================
+   ENTITY LOGIC
+================================ */
+
+function update_entities(){
+
+    entities.forEach(e=>{
+
+        e.x+=e.vx;
+        e.y+=e.vy;
+
+        if(e.x<0||e.x>GRID_SIZE*CELL_SIZE) e.vx*=-1;
+        if(e.y<0||e.y>GRID_SIZE*CELL_SIZE) e.vy*=-1;
+
+        e.el.style.left=e.x+"px";
+        e.el.style.top =e.y+"px";
+    });
+}
+
+/* ================================
+   DAY / NIGHT
+================================ */
+
+function update_time(){
+
+    day_time++;
+
+    let overlay=document.getElementById("overlay");
+    let time_label=document.getElementById("time");
+
+    if(day_time%400<200){
+        overlay.style.background="rgba(0,0,0,0)";
+        time_label.innerText="Day";
+    } else {
+        overlay.style.background="rgba(0,0,0,0.35)";
+        time_label.innerText="Night";
+    }
+}
+
+/* ================================
+   MAIN LOOP
+================================ */
+
+function sim_tick_step(){
+
+    sim_tick++;
+    document.getElementById("tick").innerText=sim_tick;
+
+    sim_update_grid();
+    update_time();
+}
+
+function frame_loop(){
+    update_entities();
+    requestAnimationFrame(frame_loop);
+}
+
+/* ================================
+   BOOT
+================================ */
+
+init_grid();
+
+// seed citizens
+
+for(let i=0;i<25;i++) spawn_entity("citizen");
+for(let i=0;i<8;i++) spawn_entity("masked");
+for(let i=0;i<5;i++) spawn_entity("runner");
+
+document.getElementById("citizens").innerText=entities.length;
+
+setInterval(sim_tick_step,SIM_INTERVAL);
+frame_loop();
+
+</script>
+
 </body>
 </html>
