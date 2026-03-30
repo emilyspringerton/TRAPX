@@ -2,14 +2,8 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>TRAPX v0 - Urban Systems Prototype</title>
-
+<title>TRAPX Block Zero v1</title>
 <style>
-
-/* ================================
-   GLOBAL RESET (OLD SCHOOL)
-================================ */
-
 html, body {
     margin: 0;
     padding: 0;
@@ -19,23 +13,69 @@ html, body {
     overflow: hidden;
 }
 
-/* ================================
-   HUD
-================================ */
-
 #hud {
     position: fixed;
     top: 8px;
     left: 8px;
+    width: 280px;
     padding: 8px;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0,0,0,0.7);
     border: 1px solid #00ffff;
     font-size: 12px;
+    z-index: 20;
 }
 
-/* ================================
-   GRID
-================================ */
+#selection {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(0,255,255,0.25);
+}
+
+#events {
+    margin-top: 6px;
+    max-height: 120px;
+    overflow-y: auto;
+    border-top: 1px solid rgba(0,255,255,0.25);
+    padding-top: 6px;
+}
+
+.event {
+    margin-bottom: 3px;
+    color: #8ce8ff;
+}
+
+.event.shift { color: #ff8cf0; }
+.event.spike { color: #ff5252; }
+.event.stability { color: #b7ffa0; }
+
+#cards {
+    position: fixed;
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(130px, 1fr));
+    gap: 8px;
+    z-index: 30;
+}
+
+.card {
+    background: rgba(0,0,0,0.76);
+    border: 1px solid rgba(0,255,255,0.4);
+    color: #00ffff;
+    padding: 6px;
+    cursor: pointer;
+    transition: transform 0.12s, border-color 0.2s;
+    min-height: 78px;
+}
+
+.card:hover { transform: translateY(-2px); }
+.card.active { border-color: #ff00cc; box-shadow: 0 0 10px rgba(255,0,204,0.35); }
+.card.cooldown { opacity: 0.5; cursor: not-allowed; }
+
+.card .title { font-weight: bold; color: #ff9eec; }
+.card .meta { margin-top: 4px; color: #7df6ff; }
+.card .hint { margin-top: 4px; font-size: 11px; color: #9bd4ff; }
 
 #world {
     position: absolute;
@@ -48,37 +88,31 @@ html, body {
 .cell {
     position: absolute;
     box-sizing: border-box;
-    border: 1px solid rgba(0,255,255,0.15);
-    transition: background 0.6s;
+    border: 1px solid rgba(0,255,255,0.14);
+    transition: background 0.35s, box-shadow 0.15s, opacity 0.2s;
 }
 
-/* states */
+.cell.neutral { background: #0a0a11; }
+.cell.player { background: #8b2be2; }
+.cell.rival { background: #00ff66; }
+.cell.institutional { background: #7a1a1a; }
 
-.cell.neutral { background: #050505; }
-.cell.player  { background: #ff00cc; }
-.cell.enemy   { background: #00ff66; }
-.cell.corrupt { background: #400014; }
-
-/* ================================
-   ENTITIES
-================================ */
+.cell.hovered { box-shadow: inset 0 0 0 2px #ffffff; }
+.cell.preview-valid { box-shadow: inset 0 0 0 2px #00ffd0; }
+.cell.preview-invalid { box-shadow: inset 0 0 0 2px #ff3232; }
 
 .entity {
     position: absolute;
     width: 6px;
     height: 6px;
-    background: white;
     border-radius: 2px;
     pointer-events: none;
+    opacity: 0.75;
 }
 
 .entity.citizen { background:#ffffff; }
 .entity.runner  { background:#00ffff; }
 .entity.masked  { background:#ff0000; }
-
-/* ================================
-   DAY NIGHT
-================================ */
 
 #overlay {
     position:absolute;
@@ -88,271 +122,559 @@ html, body {
     height:100%;
     pointer-events:none;
     background: rgba(0,0,0,0);
-    transition: background 2s;
+    transition: background 1.5s;
+    z-index: 10;
 }
 
+#endState {
+    position: fixed;
+    inset: 0;
+    display: none;
+    place-items: center;
+    background: rgba(0,0,0,0.76);
+    color: #ff6262;
+    font-size: 26px;
+    letter-spacing: 1px;
+    z-index: 50;
+}
 </style>
 </head>
-
 <body>
 
 <div id="hud">
-TRAPX v0<br>
+<b>TRAPX BLOCK ZERO v1</b><br>
 Tick: <span id="tick">0</span><br>
 Time: <span id="time">Day</span><br>
-Citizens: <span id="citizens">0</span>
+Stability Avg: <span id="avgStability">0.00</span><br>
+Pressure (P/R/I): <span id="pressures">0 / 0 / 0</span><br>
+Entities (garnish): <span id="citizens">0</span><br>
+Status: <span id="status">Running</span>
+<div id="selection">Hover a block to inspect.</div>
+<div id="events"></div>
 </div>
 
+<div id="cards"></div>
 <div id="world"></div>
 <div id="overlay"></div>
+<div id="endState">NEIGHBORHOOD COLLAPSE</div>
 
 <script>
-
-/* ================================
-   CONSTANTS
-================================ */
-
 const GRID_SIZE = 20;
 const CELL_SIZE = 40;
-const SIM_INTERVAL = 800;
+const SIM_INTERVAL = 500;
+const WARMUP_TICKS = 80;
 
-const STATE_NEUTRAL = 0;
-const STATE_PLAYER  = 1;
-const STATE_ENEMY   = 2;
-const STATE_CORRUPT = 3;
-
-/* ================================
-   DATA STRUCTURES
-================================ */
-
-var grid = [];
-var entities = [];
-
-var sim_tick = 0;
-var day_time = 0;
-
-/* ================================
-   SIM HOOKS (EXPOSED)
-================================ */
-
-var sim_weights = {
-    convert_threshold: 3,
-    corruption_spread: 4,
-    growth_chance: 0.05
+const ALIGNMENT = {
+    neutral: "neutral",
+    player: "player",
+    rival: "rival",
+    institutional: "institutional"
 };
 
-window.TRAPX_SIM_SET_WEIGHT = function(name,value){
-    sim_weights[name] = value;
-};
+const world = document.getElementById("world");
+const eventsEl = document.getElementById("events");
+const selectionEl = document.getElementById("selection");
 
-window.TRAPX_SIM_SPAWN_ENTITY = function(type){
-    spawn_entity(type);
-};
+let grid = [];
+let entities = [];
+let sim_tick = 0;
+let day_time = 0;
+let gameRunning = true;
+let hoveredBlock = null;
+let selectedBlock = null;
+let selectedCardId = null;
 
-/* ================================
-   INIT
-================================ */
+const cards = [
+    {
+        id: "outreach",
+        name: "Outreach",
+        cost: 1,
+        cooldown: 4,
+        cooldownLeft: 0,
+        tooltip: "Stabilize and build slight player pressure.",
+        isValidPlacement: (b) => b.alignment !== ALIGNMENT.institutional,
+        apply: (b) => {
+            b.stability = clamp01(b.stability + 0.16);
+            b.pressure.player += 0.35;
+            logEvent(`Outreach applied at (${b.x},${b.y}).`, "stability");
+        }
+    },
+    {
+        id: "investment",
+        name: "Investment",
+        cost: 2,
+        cooldown: 6,
+        cooldownLeft: 0,
+        tooltip: "Population growth, minor stability gain, raises institutional visibility over time.",
+        isValidPlacement: (b) => b.population < 230,
+        apply: (b) => {
+            b.growthBoostTicks = Math.max(b.growthBoostTicks, 16);
+            b.stability = clamp01(b.stability + 0.08);
+            b.institutionalVisibility += 0.5;
+            logEvent(`Investment injected into (${b.x},${b.y}).`, "stability");
+        }
+    },
+    {
+        id: "enforcement",
+        name: "Enforcement",
+        cost: 2,
+        cooldown: 5,
+        cooldownLeft: 0,
+        tooltip: "Suppress rival pressure, but harms local stability.",
+        isValidPlacement: (b) => b.pressure.rival > 0.2,
+        apply: (b) => {
+            b.pressure.rival = Math.max(0, b.pressure.rival - 1.1);
+            b.stability = clamp01(b.stability - 0.15);
+            logEvent(`Enforcement in (${b.x},${b.y}): rival pressure reduced.`, "shift");
+        }
+    },
+    {
+        id: "logistics",
+        name: "Logistics",
+        cost: 3,
+        cooldown: 7,
+        cooldownLeft: 0,
+        tooltip: "Boost player spread locally, but increase detectability.",
+        isValidPlacement: (b) => b.alignment !== ALIGNMENT.rival,
+        apply: (b) => {
+            b.logisticsBoostTicks = Math.max(b.logisticsBoostTicks, 18);
+            b.detectability += 0.6;
+            b.pressure.player += 0.25;
+            logEvent(`Logistics route opened at (${b.x},${b.y}).`, "shift");
+        }
+    },
+    {
+        id: "suppression",
+        name: "Suppression",
+        cost: 3,
+        cooldown: 8,
+        cooldownLeft: 0,
+        tooltip: "Temporarily reduce institutional pressure; heavy backlash later.",
+        isValidPlacement: (b) => b.pressure.institutional > 0.4,
+        apply: (b) => {
+            b.pressure.institutional = Math.max(0, b.pressure.institutional - 1.0);
+            b.suppressionBacklashTicks = Math.max(b.suppressionBacklashTicks, 20);
+            logEvent(`Suppression started at (${b.x},${b.y}) - backlash expected.`, "spike");
+        }
+    }
+];
 
-var world = document.getElementById("world");
+function clamp01(v){ return Math.max(0, Math.min(1, v)); }
 
-function init_grid(){
-    for(let y=0;y<GRID_SIZE;y++){
-        grid[y]=[];
-        for(let x=0;x<GRID_SIZE;x++){
+function createBlock(x, y) {
+    const block = {
+        x,
+        y,
+        alignment: ALIGNMENT.neutral,
+        pressure: { player: 0, rival: 0, institutional: 0 },
+        stability: 0.55 + Math.random() * 0.3,
+        population: Math.floor(40 + Math.random() * 120),
+        growthBoostTicks: 0,
+        logisticsBoostTicks: 0,
+        suppressionBacklashTicks: 0,
+        institutionalVisibility: Math.random() * 0.15,
+        detectability: Math.random() * 0.15,
+        dom: document.createElement("div")
+    };
 
-            let cell = {
-                state: STATE_NEUTRAL,
-                population: Math.random()*120,
-                el: document.createElement("div")
-            };
+    block.dom.className = "cell neutral";
+    block.dom.style.width = CELL_SIZE + "px";
+    block.dom.style.height = CELL_SIZE + "px";
+    block.dom.style.left = (x * CELL_SIZE) + "px";
+    block.dom.style.top = (y * CELL_SIZE) + "px";
 
-            cell.el.className="cell neutral";
-            cell.el.style.width = CELL_SIZE+"px";
-            cell.el.style.height = CELL_SIZE+"px";
-            cell.el.style.left = (x*CELL_SIZE)+"px";
-            cell.el.style.top  = (y*CELL_SIZE)+"px";
+    block.dom.addEventListener("mouseenter", () => onBlockHover(block));
+    block.dom.addEventListener("mouseleave", () => clearHover(block));
+    block.dom.addEventListener("click", () => onBlockClick(block));
 
-            world.appendChild(cell.el);
+    world.appendChild(block.dom);
+    return block;
+}
 
-            grid[y][x]=cell;
+function initGrid() {
+    for (let y = 0; y < GRID_SIZE; y++) {
+        grid[y] = [];
+        for (let x = 0; x < GRID_SIZE; x++) {
+            grid[y][x] = createBlock(x, y);
         }
     }
 
-    // seed some pressure
-
-    grid[5][5].state = STATE_PLAYER;
-    grid[14][12].state = STATE_ENEMY;
-    grid[10][3].state = STATE_CORRUPT;
-
-    refresh_grid();
+    seedNeighborhood();
+    for (let i = 0; i < WARMUP_TICKS; i++) {
+        updateBlocks(true);
+        sim_tick++;
+    }
+    sim_tick = 0;
+    logEvent(`Neighborhood seeded with ${WARMUP_TICKS} warmup ticks.`);
+    refreshGrid();
 }
 
-function spawn_entity(type){
-    let e = {
-        type:type,
-        x: Math.random()*GRID_SIZE*CELL_SIZE,
-        y: Math.random()*GRID_SIZE*CELL_SIZE,
-        vx: (Math.random()-0.5)*1.5,
-        vy: (Math.random()-0.5)*1.5,
-        el: document.createElement("div")
-    };
+function seedNeighborhood() {
+    seedCluster(5, 5, 2, ALIGNMENT.rival, { rival: 1.8, stability: -0.2 });
+    seedCluster(13, 12, 3, ALIGNMENT.rival, { rival: 2.2, stability: -0.28 });
+    seedCluster(10, 6, 2, ALIGNMENT.institutional, { institutional: 1.9, stability: -0.18 });
+    seedCluster(16, 4, 2, ALIGNMENT.institutional, { institutional: 2.3, stability: -0.2 });
 
-    e.el.className="entity "+type;
-    world.appendChild(e.el);
-    entities.push(e);
+    for (let i = 0; i < 24; i++) {
+        const x = Math.floor(Math.random() * GRID_SIZE);
+        const y = Math.floor(Math.random() * GRID_SIZE);
+        const b = grid[y][x];
+        b.stability = clamp01(0.15 + Math.random() * 0.2);
+        b.pressure.rival += 0.4 * Math.random();
+    }
 }
 
-/* ================================
-   GRID LOGIC
-================================ */
+function seedCluster(cx, cy, radius, alignment, intensity) {
+    for (let y = Math.max(0, cy - radius); y <= Math.min(GRID_SIZE - 1, cy + radius); y++) {
+        for (let x = Math.max(0, cx - radius); x <= Math.min(GRID_SIZE - 1, cx + radius); x++) {
+            const d = Math.hypot(x - cx, y - cy);
+            if (d > radius + Math.random() * 0.7) continue;
+            const b = grid[y][x];
+            b.alignment = alignment;
+            if (intensity.rival) b.pressure.rival += intensity.rival * (1 - d / (radius + 1));
+            if (intensity.institutional) b.pressure.institutional += intensity.institutional * (1 - d / (radius + 1));
+            if (intensity.stability) b.stability = clamp01(b.stability + intensity.stability);
+        }
+    }
+}
 
-function get_neighbors(x,y){
-    let list=[];
-    for(let dy=-1;dy<=1;dy++){
-        for(let dx=-1;dx<=1;dx++){
-            if(dx==0 && dy==0) continue;
-            let nx=x+dx, ny=y+dy;
-            if(nx>=0 && ny>=0 && nx<GRID_SIZE && ny<GRID_SIZE){
-                list.push(grid[ny][nx]);
-            }
+function getNeighbors(x, y) {
+    const list = [];
+    for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+            if (!dx && !dy) continue;
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && ny >= 0 && nx < GRID_SIZE && ny < GRID_SIZE) list.push(grid[ny][nx]);
         }
     }
     return list;
 }
 
-function sim_update_grid(){
+function chooseAlignment(pressure, stability) {
+    const playerNet = pressure.player - (pressure.rival * 0.65 + pressure.institutional * 0.5);
+    const rivalNet = pressure.rival - pressure.player * 0.55;
+    const institutionalNet = pressure.institutional + (1 - stability) * 0.8;
 
-    let changes=[];
+    let best = ALIGNMENT.neutral;
+    let bestScore = 0.4;
+    if (playerNet > bestScore) { best = ALIGNMENT.player; bestScore = playerNet; }
+    if (rivalNet > bestScore) { best = ALIGNMENT.rival; bestScore = rivalNet; }
+    if (institutionalNet > bestScore) { best = ALIGNMENT.institutional; bestScore = institutionalNet; }
+    return best;
+}
 
-    for(let y=0;y<GRID_SIZE;y++){
-        for(let x=0;x<GRID_SIZE;x++){
+function updateBlocks(isWarmup = false) {
+    const next = [];
+    for (let y = 0; y < GRID_SIZE; y++) {
+        next[y] = [];
+        for (let x = 0; x < GRID_SIZE; x++) {
+            const b = grid[y][x];
+            const neighbors = getNeighbors(x, y);
 
-            let cell = grid[y][x];
-            let neighbors = get_neighbors(x,y);
+            const sums = neighbors.reduce((acc, n) => {
+                acc.player += n.pressure.player;
+                acc.rival += n.pressure.rival;
+                acc.institutional += n.pressure.institutional;
+                acc.stability += n.stability;
+                return acc;
+            }, { player: 0, rival: 0, institutional: 0, stability: 0 });
 
-            let counts=[0,0,0,0];
+            const nCount = Math.max(1, neighbors.length);
+            const nearPlayer = sums.player / nCount;
+            const nearRival = sums.rival / nCount;
+            const nearInst = sums.institutional / nCount;
+            const neighborStability = sums.stability / nCount;
 
-            neighbors.forEach(n=>{
-                counts[n.state]++;
-            });
+            const decay = 0.93;
+            const logisticsSpreadBoost = b.logisticsBoostTicks > 0 ? 1.6 : 1;
+            const nextPressure = {
+                player: Math.max(0, b.pressure.player * decay + nearPlayer * 0.19 * logisticsSpreadBoost + (b.alignment === ALIGNMENT.player ? 0.06 : 0)),
+                rival: Math.max(0, b.pressure.rival * decay + nearRival * 0.22 + (b.alignment === ALIGNMENT.rival ? 0.08 : 0)),
+                institutional: Math.max(0, b.pressure.institutional * decay + nearInst * 0.2 + b.institutionalVisibility * 0.07 + b.detectability * 0.06)
+            };
 
-            if(cell.state===STATE_NEUTRAL){
-                if(counts[STATE_PLAYER]>=sim_weights.convert_threshold)
-                    changes.push([cell,STATE_PLAYER]);
-
-                if(counts[STATE_ENEMY]>=sim_weights.convert_threshold)
-                    changes.push([cell,STATE_ENEMY]);
-
-                if(counts[STATE_CORRUPT]>=sim_weights.corruption_spread)
-                    changes.push([cell,STATE_CORRUPT]);
+            if (b.suppressionBacklashTicks > 0) {
+                if (b.suppressionBacklashTicks < 8) {
+                    nextPressure.institutional += 0.22;
+                } else {
+                    nextPressure.institutional = Math.max(0, nextPressure.institutional - 0.14);
+                }
             }
 
-            if(Math.random()<sim_weights.growth_chance){
-                cell.population+=10;
+            let nextPopulation = b.population;
+            let growth = 0.2 + (b.stability - 0.5) * 0.7;
+            if (b.growthBoostTicks > 0) growth += 1.8;
+            growth -= nextPressure.rival * 0.1;
+            growth -= nextPressure.institutional * 0.06;
+            nextPopulation = Math.max(0, Math.min(255, Math.round(nextPopulation + growth)));
+
+            let nextStability = b.stability;
+            nextStability += (neighborStability - b.stability) * 0.06;
+            nextStability += nextPressure.player * 0.005;
+            nextStability -= nextPressure.rival * 0.007;
+            nextStability -= nextPressure.institutional * 0.008;
+            if (nextPopulation < 20) nextStability -= 0.015;
+            if (nextPopulation > 210) nextStability -= 0.01;
+            nextStability = clamp01(nextStability);
+
+            const nextAlignment = chooseAlignment(nextPressure, nextStability);
+            if (!isWarmup && nextAlignment !== b.alignment) {
+                logEvent(`Alignment shift at (${x},${y}): ${b.alignment} → ${nextAlignment}.`, "shift");
+            }
+            if (!isWarmup && (nextPressure.institutional - b.pressure.institutional) > 0.35) {
+                logEvent(`Institutional pressure spike at (${x},${y}).`, "spike");
             }
 
-            if(cell.population>220){
-                cell.population=100;
-            }
+            const nb = {
+                ...b,
+                pressure: nextPressure,
+                population: nextPopulation,
+                stability: nextStability,
+                alignment: nextAlignment,
+                growthBoostTicks: Math.max(0, b.growthBoostTicks - 1),
+                logisticsBoostTicks: Math.max(0, b.logisticsBoostTicks - 1),
+                suppressionBacklashTicks: Math.max(0, b.suppressionBacklashTicks - 1),
+                institutionalVisibility: Math.max(0, b.institutionalVisibility * 0.98),
+                detectability: Math.max(0, b.detectability * 0.975)
+            };
+
+            next[y][x] = nb;
         }
     }
 
-    changes.forEach(c=>{
-        c[0].state=c[1];
-    });
-
-    refresh_grid();
-}
-
-function refresh_grid(){
-    for(let y=0;y<GRID_SIZE;y++){
-        for(let x=0;x<GRID_SIZE;x++){
-            let c=grid[y][x];
-            c.el.className="cell "+
-                (c.state==STATE_NEUTRAL?"neutral":
-                c.state==STATE_PLAYER?"player":
-                c.state==STATE_ENEMY?"enemy":"corrupt");
-
-            let intensity = Math.min(1,c.population/200);
-            c.el.style.opacity = 0.4+intensity*0.6;
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            const dom = grid[y][x].dom;
+            grid[y][x] = next[y][x];
+            grid[y][x].dom = dom;
         }
     }
 }
 
-/* ================================
-   ENTITY LOGIC
-================================ */
+function refreshGrid() {
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            const b = grid[y][x];
+            b.dom.className = `cell ${b.alignment}`;
 
-function update_entities(){
+            const pressureTotal = b.pressure.player + b.pressure.rival + b.pressure.institutional;
+            const pressureGlow = Math.min(1, pressureTotal / 5);
+            const popIntensity = 0.35 + Math.min(0.6, b.population / 300);
+            b.dom.style.opacity = popIntensity;
+            b.dom.style.filter = `saturate(${0.8 + pressureGlow * 0.6})`;
 
-    entities.forEach(e=>{
+            if (hoveredBlock === b) b.dom.classList.add("hovered");
+            if (selectedCardId) {
+                const card = cards.find(c => c.id === selectedCardId);
+                if (card) {
+                    b.dom.classList.add(card.isValidPlacement(b) ? "preview-valid" : "preview-invalid");
+                }
+            }
+        }
+    }
+}
 
-        e.x+=e.vx;
-        e.y+=e.vy;
+function clearTransientClasses() {
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            grid[y][x].dom.classList.remove("hovered", "preview-valid", "preview-invalid");
+        }
+    }
+}
 
-        if(e.x<0||e.x>GRID_SIZE*CELL_SIZE) e.vx*=-1;
-        if(e.y<0||e.y>GRID_SIZE*CELL_SIZE) e.vy*=-1;
+function onBlockHover(block) {
+    hoveredBlock = block;
+    updateSelectionInfo(block);
+    clearTransientClasses();
+    refreshGrid();
+}
 
-        e.el.style.left=e.x+"px";
-        e.el.style.top =e.y+"px";
+function clearHover(block) {
+    if (hoveredBlock === block) hoveredBlock = null;
+    clearTransientClasses();
+    refreshGrid();
+    if (selectedBlock) updateSelectionInfo(selectedBlock);
+    else selectionEl.innerHTML = "Hover a block to inspect.";
+}
+
+function onBlockClick(block) {
+    selectedBlock = block;
+    updateSelectionInfo(block);
+
+    if (!selectedCardId || !gameRunning) return;
+    const card = cards.find(c => c.id === selectedCardId);
+    if (!card) return;
+
+    if (card.cooldownLeft > 0) {
+        logEvent(`${card.name} is cooling down (${card.cooldownLeft}t).`);
+        return;
+    }
+
+    if (!card.isValidPlacement(block)) {
+        logEvent(`Invalid target for ${card.name}.`, "spike");
+        return;
+    }
+
+    card.apply(block);
+    card.cooldownLeft = card.cooldown;
+    selectedCardId = null;
+    renderCards();
+    clearTransientClasses();
+    refreshGrid();
+}
+
+function updateSelectionInfo(b) {
+    const netPressure = b.pressure.player - b.pressure.rival - b.pressure.institutional;
+    selectionEl.innerHTML = `
+<b>Block (${b.x},${b.y})</b><br>
+Alignment: ${b.alignment}<br>
+Pressure net: ${netPressure.toFixed(2)}<br>
+Player/Rival/Institutional: ${b.pressure.player.toFixed(2)} / ${b.pressure.rival.toFixed(2)} / ${b.pressure.institutional.toFixed(2)}<br>
+Stability: ${b.stability.toFixed(2)}<br>
+Population: ${b.population}`;
+}
+
+function logEvent(message, css = "") {
+    const item = document.createElement("div");
+    item.className = `event ${css}`;
+    item.textContent = `[${sim_tick}] ${message}`;
+    eventsEl.prepend(item);
+    while (eventsEl.children.length > 18) eventsEl.removeChild(eventsEl.lastChild);
+}
+
+function renderCards() {
+    const cardsEl = document.getElementById("cards");
+    cardsEl.innerHTML = "";
+
+    cards.forEach(card => {
+        const el = document.createElement("button");
+        el.className = "card";
+        if (selectedCardId === card.id) el.classList.add("active");
+        if (card.cooldownLeft > 0) el.classList.add("cooldown");
+        el.innerHTML = `
+<div class="title">${card.name}</div>
+<div class="meta">Cost: ${card.cost} | CD: ${card.cooldownLeft > 0 ? card.cooldownLeft : "Ready"}</div>
+<div class="hint">${card.tooltip}</div>`;
+
+        el.addEventListener("click", () => {
+            if (card.cooldownLeft > 0 || !gameRunning) return;
+            selectedCardId = selectedCardId === card.id ? null : card.id;
+            clearTransientClasses();
+            refreshGrid();
+            renderCards();
+        });
+
+        cardsEl.appendChild(el);
     });
 }
 
-/* ================================
-   DAY / NIGHT
-================================ */
+function spawnEntity(type) {
+    const e = {
+        type,
+        x: Math.random() * GRID_SIZE * CELL_SIZE,
+        y: Math.random() * GRID_SIZE * CELL_SIZE,
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: (Math.random() - 0.5) * 1.5,
+        el: document.createElement("div")
+    };
 
-function update_time(){
+    e.el.className = "entity " + type;
+    world.appendChild(e.el);
+    entities.push(e);
+}
 
+function updateEntities() {
+    entities.forEach(e => {
+        e.x += e.vx;
+        e.y += e.vy;
+        if (e.x < 0 || e.x > GRID_SIZE * CELL_SIZE) e.vx *= -1;
+        if (e.y < 0 || e.y > GRID_SIZE * CELL_SIZE) e.vy *= -1;
+        e.el.style.left = e.x + "px";
+        e.el.style.top = e.y + "px";
+    });
+}
+
+function updateTime() {
     day_time++;
+    const overlay = document.getElementById("overlay");
+    const label = document.getElementById("time");
 
-    let overlay=document.getElementById("overlay");
-    let time_label=document.getElementById("time");
-
-    if(day_time%400<200){
-        overlay.style.background="rgba(0,0,0,0)";
-        time_label.innerText="Day";
+    if (day_time % 360 < 190) {
+        overlay.style.background = "rgba(0,0,0,0)";
+        label.innerText = "Day";
     } else {
-        overlay.style.background="rgba(0,0,0,0.35)";
-        time_label.innerText="Night";
+        overlay.style.background = "rgba(0,0,0,0.35)";
+        label.innerText = "Night";
     }
 }
 
-/* ================================
-   MAIN LOOP
-================================ */
+function updateHud() {
+    let totalStability = 0;
+    let pp = 0, rp = 0, ip = 0;
+    let unstable = 0;
 
-function sim_tick_step(){
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            const b = grid[y][x];
+            totalStability += b.stability;
+            pp += b.pressure.player;
+            rp += b.pressure.rival;
+            ip += b.pressure.institutional;
+            if (b.stability < 0.2) unstable++;
+        }
+    }
 
+    const totalBlocks = GRID_SIZE * GRID_SIZE;
+    const avgStability = totalStability / totalBlocks;
+
+    document.getElementById("tick").innerText = sim_tick;
+    document.getElementById("avgStability").innerText = avgStability.toFixed(2);
+    document.getElementById("pressures").innerText = `${pp.toFixed(0)} / ${rp.toFixed(0)} / ${ip.toFixed(0)}`;
+
+    if (avgStability < 0.17 || unstable > totalBlocks * 0.62) {
+        triggerCollapse(avgStability, unstable);
+    }
+}
+
+function triggerCollapse(avgStability, unstable) {
+    if (!gameRunning) return;
+    gameRunning = false;
+    document.getElementById("status").innerText = "Collapsed";
+    document.getElementById("endState").style.display = "grid";
+    logEvent(`Collapse triggered: avg stability ${avgStability.toFixed(2)}, unstable blocks ${unstable}.`, "spike");
+}
+
+function simTickStep() {
+    if (!gameRunning) return;
     sim_tick++;
-    document.getElementById("tick").innerText=sim_tick;
 
-    sim_update_grid();
-    update_time();
+    cards.forEach(c => { if (c.cooldownLeft > 0) c.cooldownLeft--; });
+    updateBlocks(false);
+    updateTime();
+    updateHud();
+    renderCards();
+
+    clearTransientClasses();
+    refreshGrid();
+
+    if (selectedBlock) updateSelectionInfo(selectedBlock);
 }
 
-function frame_loop(){
-    update_entities();
-    requestAnimationFrame(frame_loop);
+function frameLoop() {
+    updateEntities();
+    requestAnimationFrame(frameLoop);
 }
 
-/* ================================
-   BOOT
-================================ */
+initGrid();
+for (let i = 0; i < 21; i++) spawnEntity("citizen");
+for (let i = 0; i < 8; i++) spawnEntity("masked");
+for (let i = 0; i < 4; i++) spawnEntity("runner");
 
-init_grid();
-
-// seed citizens
-
-for(let i=0;i<25;i++) spawn_entity("citizen");
-for(let i=0;i<8;i++) spawn_entity("masked");
-for(let i=0;i<5;i++) spawn_entity("runner");
-
-document.getElementById("citizens").innerText=entities.length;
-
-setInterval(sim_tick_step,SIM_INTERVAL);
-frame_loop();
-
+document.getElementById("citizens").innerText = entities.length;
+renderCards();
+setInterval(simTickStep, SIM_INTERVAL);
+frameLoop();
 </script>
 
 </body>
