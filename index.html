@@ -2,14 +2,8 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>TRAPX v0 - Urban Systems Prototype</title>
-
+<title>TRAPX v1 Block Zero</title>
 <style>
-
-/* ================================
-   GLOBAL RESET (OLD SCHOOL)
-================================ */
-
 html, body {
     margin: 0;
     padding: 0;
@@ -19,23 +13,73 @@ html, body {
     overflow: hidden;
 }
 
-/* ================================
-   HUD
-================================ */
-
 #hud {
     position: fixed;
     top: 8px;
     left: 8px;
+    width: 280px;
     padding: 8px;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0,0,0,0.65);
     border: 1px solid #00ffff;
     font-size: 12px;
+    z-index: 20;
 }
 
-/* ================================
-   GRID
-================================ */
+#hud .section {
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px dashed rgba(0,255,255,0.35);
+}
+
+#card-hand {
+    position: fixed;
+    left: 8px;
+    bottom: 8px;
+    display: flex;
+    gap: 6px;
+    z-index: 30;
+}
+
+.card {
+    width: 118px;
+    min-height: 70px;
+    padding: 6px;
+    border: 1px solid #00aaaa;
+    background: rgba(0,0,0,0.75);
+    color: #9cfbff;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.card.selected {
+    border-color: #ff00cc;
+    box-shadow: 0 0 8px rgba(255,0,204,0.5);
+}
+
+.card.disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+#event-log {
+    position: fixed;
+    right: 8px;
+    top: 8px;
+    width: 340px;
+    max-height: 42vh;
+    overflow-y: auto;
+    padding: 8px;
+    border: 1px solid #00aaaa;
+    background: rgba(0,0,0,0.6);
+    font-size: 11px;
+    z-index: 20;
+}
+
+.log-line { margin-bottom: 4px; }
+.log-align { color: #ff7adf; }
+.log-pressure { color: #7de3ff; }
+.log-stability { color: #9fff9f; }
+.log-inst { color: #ffc36f; }
 
 #world {
     position: absolute;
@@ -48,37 +92,35 @@ html, body {
 .cell {
     position: absolute;
     box-sizing: border-box;
-    border: 1px solid rgba(0,255,255,0.15);
-    transition: background 0.6s;
+    border: 1px solid rgba(0,255,255,0.14);
+    transition: background 0.25s, opacity 0.25s, outline-color 0.1s;
 }
 
-/* states */
+.cell.neutral { background: #070707; }
+.cell.player { background: #4a0039; }
+.cell.rival { background: #003f20; }
+.cell.institutional { background: #3e1c00; }
 
-.cell.neutral { background: #050505; }
-.cell.player  { background: #ff00cc; }
-.cell.enemy   { background: #00ff66; }
-.cell.corrupt { background: #400014; }
+.cell.inspected { outline: 2px solid #fff799; outline-offset: -2px; }
+.cell.preview-valid { outline: 2px solid #00ffee; outline-offset: -2px; }
+.cell.preview-invalid { outline: 2px solid #ff4040; outline-offset: -2px; }
 
-/* ================================
-   ENTITIES
-================================ */
+.cell.flash-align { box-shadow: inset 0 0 18px rgba(255,0,204,0.7); }
+.cell.flash-pressure { box-shadow: inset 0 0 18px rgba(0,255,255,0.7); }
+.cell.flash-stability { box-shadow: inset 0 0 18px rgba(170,255,90,0.7); }
+.cell.flash-inst { box-shadow: inset 0 0 18px rgba(255,175,0,0.8); }
 
 .entity {
     position: absolute;
-    width: 6px;
-    height: 6px;
-    background: white;
+    width: 5px;
+    height: 5px;
     border-radius: 2px;
     pointer-events: none;
+    opacity: 0.7;
 }
-
-.entity.citizen { background:#ffffff; }
-.entity.runner  { background:#00ffff; }
-.entity.masked  { background:#ff0000; }
-
-/* ================================
-   DAY NIGHT
-================================ */
+.entity.citizen { background: #cfffff; }
+.entity.runner { background: #00e7ff; }
+.entity.masked { background: #ff4d4d; }
 
 #overlay {
     position:absolute;
@@ -88,272 +130,512 @@ html, body {
     height:100%;
     pointer-events:none;
     background: rgba(0,0,0,0);
-    transition: background 2s;
+    transition: background 1.5s;
+    z-index: 10;
 }
 
+#end-screen {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: rgba(0,0,0,0.82);
+    color: #ff6b6b;
+    z-index: 50;
+    font-size: 16px;
+}
 </style>
 </head>
-
 <body>
-
 <div id="hud">
-TRAPX v0<br>
-Tick: <span id="tick">0</span><br>
-Time: <span id="time">Day</span><br>
-Citizens: <span id="citizens">0</span>
+    <div><strong>TRAPX v1 // Block Zero</strong></div>
+    Tick: <span id="tick">0</span><br>
+    Time: <span id="time">Day</span><br>
+    Ops Budget: <span id="ops">0</span><br>
+    Collapse Risk: <span id="collapse-risk">0%</span>
+
+    <div class="section">
+        <strong>Block Inspection</strong><br>
+        Coord: <span id="inspect-coord">-</span><br>
+        Alignment: <span id="inspect-alignment">-</span><br>
+        Pressure: <span id="inspect-pressure">-</span><br>
+        Stability: <span id="inspect-stability">-</span><br>
+        Population: <span id="inspect-population">-</span>
+    </div>
+
+    <div class="section">
+        Action: <span id="action-state">Select a card</span>
+    </div>
 </div>
 
+<div id="event-log"><strong>SYSTEM FEED</strong><hr style="border-color:#00aaaa44"></div>
+<div id="card-hand"></div>
 <div id="world"></div>
 <div id="overlay"></div>
+<div id="end-screen"></div>
 
 <script>
-
-/* ================================
-   CONSTANTS
-================================ */
-
 const GRID_SIZE = 20;
 const CELL_SIZE = 40;
-const SIM_INTERVAL = 800;
+const SIM_INTERVAL = 250;
+const WARMUP_TICKS = 80;
 
-const STATE_NEUTRAL = 0;
-const STATE_PLAYER  = 1;
-const STATE_ENEMY   = 2;
-const STATE_CORRUPT = 3;
-
-/* ================================
-   DATA STRUCTURES
-================================ */
-
-var grid = [];
-var entities = [];
-
-var sim_tick = 0;
-var day_time = 0;
-
-/* ================================
-   SIM HOOKS (EXPOSED)
-================================ */
-
-var sim_weights = {
-    convert_threshold: 3,
-    corruption_spread: 4,
-    growth_chance: 0.05
+const ALIGNMENT = {
+    NEUTRAL: "Neutral",
+    PLAYER: "Player",
+    RIVAL: "Rival",
+    INSTITUTIONAL: "Institutional"
 };
 
-window.TRAPX_SIM_SET_WEIGHT = function(name,value){
-    sim_weights[name] = value;
+const cards = [
+    { id: "outreach", name: "Outreach", cost: 2, cooldown: 3, desc: "Stability +, Player pressure +", valid: b => b.population > 20 },
+    { id: "investment", name: "Investment", cost: 3, cooldown: 5, desc: "Population growth +, Stability +, Institutional visibility +", valid: b => b.population < 250 },
+    { id: "enforcement", name: "Enforcement", cost: 3, cooldown: 4, desc: "Rival pressure -, Stability -", valid: b => b.alignment !== ALIGNMENT.PLAYER || b.pressure < 0.4 },
+    { id: "logistics", name: "Logistics", cost: 4, cooldown: 6, desc: "Player spread +, Detectability +", valid: b => b.alignment === ALIGNMENT.PLAYER || b.pressure > 0.2 },
+    { id: "suppression", name: "Suppression", cost: 5, cooldown: 8, desc: "Institutional pressure --, later backlash", valid: b => b.institutionalPressure > 0.5 }
+];
+
+const state = {
+    grid: [],
+    entities: [],
+    tick: 0,
+    dayTime: 0,
+    ops: 9,
+    selectedCardId: null,
+    hoveredBlock: null,
+    inspectedBlock: null,
+    collapseStreak: 0,
+    ended: false,
+    cooldowns: Object.fromEntries(cards.map(c => [c.id, 0]))
 };
 
-window.TRAPX_SIM_SPAWN_ENTITY = function(type){
-    spawn_entity(type);
-};
+const world = document.getElementById("world");
+const overlay = document.getElementById("overlay");
+const eventLog = document.getElementById("event-log");
 
-/* ================================
-   INIT
-================================ */
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function noise(amt) { return (Math.random() - 0.5) * amt; }
 
-var world = document.getElementById("world");
-
-function init_grid(){
-    for(let y=0;y<GRID_SIZE;y++){
-        grid[y]=[];
-        for(let x=0;x<GRID_SIZE;x++){
-
-            let cell = {
-                state: STATE_NEUTRAL,
-                population: Math.random()*120,
-                el: document.createElement("div")
-            };
-
-            cell.el.className="cell neutral";
-            cell.el.style.width = CELL_SIZE+"px";
-            cell.el.style.height = CELL_SIZE+"px";
-            cell.el.style.left = (x*CELL_SIZE)+"px";
-            cell.el.style.top  = (y*CELL_SIZE)+"px";
-
-            world.appendChild(cell.el);
-
-            grid[y][x]=cell;
-        }
-    }
-
-    // seed some pressure
-
-    grid[5][5].state = STATE_PLAYER;
-    grid[14][12].state = STATE_ENEMY;
-    grid[10][3].state = STATE_CORRUPT;
-
-    refresh_grid();
+function addLog(type, msg) {
+    const line = document.createElement("div");
+    line.className = "log-line " + type;
+    line.textContent = `[${state.tick}] ${msg}`;
+    eventLog.appendChild(line);
+    eventLog.scrollTop = eventLog.scrollHeight;
+    while (eventLog.children.length > 60) eventLog.removeChild(eventLog.children[2]);
 }
 
-function spawn_entity(type){
-    let e = {
-        type:type,
-        x: Math.random()*GRID_SIZE*CELL_SIZE,
-        y: Math.random()*GRID_SIZE*CELL_SIZE,
-        vx: (Math.random()-0.5)*1.5,
-        vy: (Math.random()-0.5)*1.5,
-        el: document.createElement("div")
-    };
-
-    e.el.className="entity "+type;
-    world.appendChild(e.el);
-    entities.push(e);
+function flashBlock(block, cls) {
+    block.el.classList.add(cls);
+    setTimeout(() => block.el.classList.remove(cls), 220);
 }
 
-/* ================================
-   GRID LOGIC
-================================ */
+function blockAt(x, y) {
+    if (x < 0 || y < 0 || x >= GRID_SIZE || y >= GRID_SIZE) return null;
+    return state.grid[y][x];
+}
 
-function get_neighbors(x,y){
-    let list=[];
-    for(let dy=-1;dy<=1;dy++){
-        for(let dx=-1;dx<=1;dx++){
-            if(dx==0 && dy==0) continue;
-            let nx=x+dx, ny=y+dy;
-            if(nx>=0 && ny>=0 && nx<GRID_SIZE && ny<GRID_SIZE){
-                list.push(grid[ny][nx]);
-            }
+function getNeighbors(x, y) {
+    const list = [];
+    for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const n = blockAt(x + dx, y + dy);
+            if (n) list.push(n);
         }
     }
     return list;
 }
 
-function sim_update_grid(){
+function deriveAlignment(block) {
+    if (block.institutionalPressure > 1.2) return ALIGNMENT.INSTITUTIONAL;
+    if (block.pressure > 1.4) return ALIGNMENT.PLAYER;
+    if (block.pressure < -1.4) return ALIGNMENT.RIVAL;
+    return ALIGNMENT.NEUTRAL;
+}
 
-    let changes=[];
+function initGrid() {
+    for (let y = 0; y < GRID_SIZE; y++) {
+        state.grid[y] = [];
+        for (let x = 0; x < GRID_SIZE; x++) {
+            const el = document.createElement("div");
+            el.className = "cell neutral";
+            el.style.width = CELL_SIZE + "px";
+            el.style.height = CELL_SIZE + "px";
+            el.style.left = (x * CELL_SIZE) + "px";
+            el.style.top = (y * CELL_SIZE) + "px";
 
-    for(let y=0;y<GRID_SIZE;y++){
-        for(let x=0;x<GRID_SIZE;x++){
+            const block = {
+                x, y,
+                alignment: ALIGNMENT.NEUTRAL,
+                pressure: noise(0.5),
+                stability: clamp(0.65 + noise(0.16), 0.02, 1),
+                population: Math.floor(40 + Math.random() * 130),
+                institutionalPressure: Math.max(0, noise(0.5)),
+                spreadBoost: 0,
+                detectability: 0,
+                delayedEffects: [],
+                el,
+                lastAlignment: ALIGNMENT.NEUTRAL
+            };
 
-            let cell = grid[y][x];
-            let neighbors = get_neighbors(x,y);
-
-            let counts=[0,0,0,0];
-
-            neighbors.forEach(n=>{
-                counts[n.state]++;
+            el.addEventListener("mouseenter", () => {
+                state.hoveredBlock = block;
+                inspectBlock(block, false);
+                refreshPreview();
             });
+            el.addEventListener("mouseleave", () => {
+                state.hoveredBlock = null;
+                refreshPreview();
+            });
+            el.addEventListener("click", () => handleBlockClick(block));
 
-            if(cell.state===STATE_NEUTRAL){
-                if(counts[STATE_PLAYER]>=sim_weights.convert_threshold)
-                    changes.push([cell,STATE_PLAYER]);
-
-                if(counts[STATE_ENEMY]>=sim_weights.convert_threshold)
-                    changes.push([cell,STATE_ENEMY]);
-
-                if(counts[STATE_CORRUPT]>=sim_weights.corruption_spread)
-                    changes.push([cell,STATE_CORRUPT]);
-            }
-
-            if(Math.random()<sim_weights.growth_chance){
-                cell.population+=10;
-            }
-
-            if(cell.population>220){
-                cell.population=100;
-            }
-        }
-    }
-
-    changes.forEach(c=>{
-        c[0].state=c[1];
-    });
-
-    refresh_grid();
-}
-
-function refresh_grid(){
-    for(let y=0;y<GRID_SIZE;y++){
-        for(let x=0;x<GRID_SIZE;x++){
-            let c=grid[y][x];
-            c.el.className="cell "+
-                (c.state==STATE_NEUTRAL?"neutral":
-                c.state==STATE_PLAYER?"player":
-                c.state==STATE_ENEMY?"enemy":"corrupt");
-
-            let intensity = Math.min(1,c.population/200);
-            c.el.style.opacity = 0.4+intensity*0.6;
+            world.appendChild(el);
+            state.grid[y][x] = block;
         }
     }
 }
 
-/* ================================
-   ENTITY LOGIC
-================================ */
+function seedNeighborhood() {
+    function seedCluster(cx, cy, radius, fn) {
+        for (let y = cy - radius; y <= cy + radius; y++) {
+            for (let x = cx - radius; x <= cx + radius; x++) {
+                const b = blockAt(x, y);
+                if (!b) continue;
+                const d = Math.hypot(x - cx, y - cy);
+                if (d <= radius + Math.random() * 0.9) fn(b, d);
+            }
+        }
+    }
 
-function update_entities(){
+    // rival clusters
+    seedCluster(4, 4, 3, b => { b.pressure -= 2.2 + Math.random() * 0.8; b.stability -= 0.12; });
+    seedCluster(15, 14, 3, b => { b.pressure -= 1.8 + Math.random() * 0.9; });
 
-    entities.forEach(e=>{
+    // institutional hot zones
+    seedCluster(12, 4, 2, b => { b.institutionalPressure += 1.6 + Math.random() * 0.8; b.stability -= 0.08; });
+    seedCluster(6, 14, 2, b => { b.institutionalPressure += 1.4 + Math.random() * 0.7; });
 
-        e.x+=e.vx;
-        e.y+=e.vy;
+    // unstable strips
+    for (let x = 0; x < GRID_SIZE; x++) {
+        const y = Math.floor(8 + Math.sin(x * 0.8) * 2 + Math.random() * 2);
+        const b = blockAt(x, clamp(y, 0, GRID_SIZE - 1));
+        if (b) b.stability = clamp(b.stability - 0.32, 0.02, 1);
+    }
 
-        if(e.x<0||e.x>GRID_SIZE*CELL_SIZE) e.vx*=-1;
-        if(e.y<0||e.y>GRID_SIZE*CELL_SIZE) e.vy*=-1;
+    // light player foothold
+    seedCluster(9, 10, 2, b => { b.pressure += 1.6 + Math.random() * 0.5; b.stability += 0.1; });
 
-        e.el.style.left=e.x+"px";
-        e.el.style.top =e.y+"px";
-    });
+    for (let i = 0; i < WARMUP_TICKS; i++) tickSimulation(true);
+    addLog("log-pressure", `Neighborhood pre-sim warmup complete (${WARMUP_TICKS} ticks)`);
 }
 
-/* ================================
-   DAY / NIGHT
-================================ */
+function inspectBlock(block, sticky) {
+    if (sticky) state.inspectedBlock = block;
 
-function update_time(){
+    document.querySelectorAll(".cell.inspected").forEach(el => el.classList.remove("inspected"));
+    if (state.inspectedBlock) state.inspectedBlock.el.classList.add("inspected");
 
-    day_time++;
+    const target = sticky ? block : (state.inspectedBlock || block);
+    if (!target) return;
 
-    let overlay=document.getElementById("overlay");
-    let time_label=document.getElementById("time");
+    document.getElementById("inspect-coord").textContent = `${target.x},${target.y}`;
+    document.getElementById("inspect-alignment").textContent = target.alignment;
+    document.getElementById("inspect-pressure").textContent = target.pressure.toFixed(2);
+    document.getElementById("inspect-stability").textContent = target.stability.toFixed(2);
+    document.getElementById("inspect-population").textContent = target.population;
+}
 
-    if(day_time%400<200){
-        overlay.style.background="rgba(0,0,0,0)";
-        time_label.innerText="Day";
-    } else {
-        overlay.style.background="rgba(0,0,0,0.35)";
-        time_label.innerText="Night";
+function applyCard(block, cardId) {
+    switch (cardId) {
+        case "outreach":
+            block.stability = clamp(block.stability + 0.12, 0, 1);
+            block.pressure += 0.45;
+            flashBlock(block, "flash-stability");
+            addLog("log-stability", `Outreach at ${block.x},${block.y}: stability +, player pressure +`);
+            break;
+        case "investment":
+            block.stability = clamp(block.stability + 0.06, 0, 1);
+            block.population = clamp(block.population + 10, 0, 255);
+            block.delayedEffects.push({ in: 10, fn: b => { b.institutionalPressure += 0.45; flashBlock(b, "flash-inst"); addLog("log-inst", `Institutional visibility rose at ${b.x},${b.y}`); } });
+            addLog("log-pressure", `Investment at ${block.x},${block.y}: growth lane opened`);
+            break;
+        case "enforcement":
+            block.pressure += Math.abs(Math.min(0, block.pressure)) * 0.65;
+            block.stability = clamp(block.stability - 0.1, 0, 1);
+            flashBlock(block, "flash-pressure");
+            addLog("log-pressure", `Enforcement at ${block.x},${block.y}: rival pressure reduced, stability cost paid`);
+            break;
+        case "logistics":
+            block.spreadBoost = clamp(block.spreadBoost + 0.65, 0, 2.5);
+            block.detectability = clamp(block.detectability + 0.5, 0, 3);
+            block.delayedEffects.push({ in: 14, fn: b => { b.detectability = clamp(b.detectability + 0.5, 0, 3); b.institutionalPressure += 0.35; addLog("log-inst", `Logistics trace detected at ${b.x},${b.y}`); } });
+            addLog("log-pressure", `Logistics at ${block.x},${block.y}: player spread boosted`);
+            break;
+        case "suppression":
+            block.institutionalPressure = Math.max(0, block.institutionalPressure - 0.95);
+            block.delayedEffects.push({ in: 12, fn: b => { b.institutionalPressure += 1.2; b.stability = clamp(b.stability - 0.12, 0, 1); flashBlock(b, "flash-inst"); addLog("log-inst", `Suppression backlash at ${b.x},${b.y}`); } });
+            addLog("log-inst", `Suppression at ${block.x},${block.y}: temporary relief, backlash pending`);
+            break;
     }
 }
 
-/* ================================
-   MAIN LOOP
-================================ */
-
-function sim_tick_step(){
-
-    sim_tick++;
-    document.getElementById("tick").innerText=sim_tick;
-
-    sim_update_grid();
-    update_time();
+function canPlaceCard(card, block) {
+    if (!card || !block || state.ended) return false;
+    if (state.cooldowns[card.id] > 0 || state.ops < card.cost) return false;
+    return card.valid(block);
 }
 
-function frame_loop(){
-    update_entities();
-    requestAnimationFrame(frame_loop);
+function handleBlockClick(block) {
+    inspectBlock(block, true);
+
+    if (!state.selectedCardId) return;
+    const card = cards.find(c => c.id === state.selectedCardId);
+    if (!canPlaceCard(card, block)) {
+        addLog("log-pressure", `Invalid placement for ${card.name} at ${block.x},${block.y}`);
+        return;
+    }
+
+    state.ops -= card.cost;
+    state.cooldowns[card.id] = card.cooldown;
+    applyCard(block, card.id);
+    state.selectedCardId = null;
+    document.getElementById("action-state").textContent = "Select a card";
+    renderCards();
+    refreshPreview();
+    inspectBlock(block, true);
 }
 
-/* ================================
-   BOOT
-================================ */
+function refreshPreview() {
+    document.querySelectorAll(".cell.preview-valid,.cell.preview-invalid").forEach(el => {
+        el.classList.remove("preview-valid", "preview-invalid");
+    });
+    if (!state.hoveredBlock || !state.selectedCardId) return;
+    const card = cards.find(c => c.id === state.selectedCardId);
+    state.hoveredBlock.el.classList.add(canPlaceCard(card, state.hoveredBlock) ? "preview-valid" : "preview-invalid");
+}
 
-init_grid();
+function renderCards() {
+    const hand = document.getElementById("card-hand");
+    hand.innerHTML = "";
 
-// seed citizens
+    cards.forEach(card => {
+        const btn = document.createElement("button");
+        const cd = state.cooldowns[card.id];
+        const disabled = cd > 0 || state.ops < card.cost;
+        btn.className = "card" + (state.selectedCardId === card.id ? " selected" : "") + (disabled ? " disabled" : "");
+        btn.title = card.desc;
+        btn.innerHTML = `<strong>${card.name}</strong><br>Cost ${card.cost} | CD ${cd}/${card.cooldown}<br><span style="opacity:0.8">${card.desc}</span>`;
+        btn.onclick = () => {
+            if (disabled) return;
+            state.selectedCardId = state.selectedCardId === card.id ? null : card.id;
+            document.getElementById("action-state").textContent = state.selectedCardId ? `Place ${card.name}` : "Select a card";
+            renderCards();
+            refreshPreview();
+        };
+        hand.appendChild(btn);
+    });
 
-for(let i=0;i<25;i++) spawn_entity("citizen");
-for(let i=0;i<8;i++) spawn_entity("masked");
-for(let i=0;i<5;i++) spawn_entity("runner");
+    document.getElementById("ops").textContent = state.ops.toFixed(1);
+}
 
-document.getElementById("citizens").innerText=entities.length;
+function updateBlockClassAndVisual(block) {
+    const alignClass = block.alignment.toLowerCase();
+    block.el.classList.remove("neutral", "player", "rival", "institutional");
+    block.el.classList.add(alignClass);
 
-setInterval(sim_tick_step,SIM_INTERVAL);
-frame_loop();
+    const popFactor = block.population / 255;
+    const stabilityFactor = block.stability;
+    block.el.style.opacity = clamp(0.35 + popFactor * 0.4 + stabilityFactor * 0.25, 0.25, 1).toFixed(2);
+}
 
+function processDelayedEffects(block) {
+    for (let i = block.delayedEffects.length - 1; i >= 0; i--) {
+        const e = block.delayedEffects[i];
+        e.in -= 1;
+        if (e.in <= 0) {
+            e.fn(block);
+            block.delayedEffects.splice(i, 1);
+        }
+    }
+}
+
+function tickSimulation(isWarmup = false) {
+    const next = [];
+    let totalStability = 0;
+
+    for (let y = 0; y < GRID_SIZE; y++) {
+        next[y] = [];
+        for (let x = 0; x < GRID_SIZE; x++) {
+            const b = state.grid[y][x];
+            const ns = getNeighbors(x, y);
+            const avgNeighborPressure = ns.reduce((s, n) => s + n.pressure * (1 + n.spreadBoost * 0.2), 0) / ns.length;
+            const avgNeighborStability = ns.reduce((s, n) => s + n.stability, 0) / ns.length;
+            const institutionalNeighbor = ns.reduce((s, n) => s + n.institutionalPressure, 0) / ns.length;
+
+            let pressure = b.pressure;
+            pressure += (avgNeighborPressure - pressure) * (0.08 + b.spreadBoost * 0.02);
+            pressure -= institutionalNeighbor * 0.03;
+            pressure += noise(0.08);
+
+            let stability = b.stability;
+            stability += (avgNeighborStability - stability) * 0.04;
+            stability -= Math.abs(pressure) * 0.018;
+            stability -= b.institutionalPressure * 0.015;
+            stability += noise(0.03);
+
+            let pop = b.population;
+            const growthBase = 0.7 + (stability - 0.45) * 2.1 - Math.max(0, b.institutionalPressure - 0.7) * 0.9;
+            pop += growthBase;
+            if (stability < 0.28) pop -= 0.9;
+
+            let institutionalPressure = b.institutionalPressure;
+            institutionalPressure += Math.max(0, b.detectability - 0.35) * 0.03;
+            institutionalPressure += Math.max(0, Math.abs(pressure) - 1.6) * 0.025;
+            institutionalPressure += noise(0.02);
+
+            next[y][x] = {
+                pressure: clamp(pressure, -4.5, 4.5),
+                stability: clamp(stability, 0, 1),
+                population: clamp(Math.round(pop), 0, 255),
+                institutionalPressure: clamp(institutionalPressure, 0, 3),
+                spreadBoost: Math.max(0, b.spreadBoost - 0.02),
+                detectability: Math.max(0, b.detectability - 0.015)
+            };
+        }
+    }
+
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            const b = state.grid[y][x];
+            const n = next[y][x];
+
+            const prevAlignment = b.alignment;
+            const prevPressure = b.pressure;
+            const prevStability = b.stability;
+            const prevInstitutional = b.institutionalPressure;
+
+            b.pressure = n.pressure;
+            b.stability = n.stability;
+            b.population = n.population;
+            b.institutionalPressure = n.institutionalPressure;
+            b.spreadBoost = n.spreadBoost;
+            b.detectability = n.detectability;
+            processDelayedEffects(b);
+            b.alignment = deriveAlignment(b);
+
+            if (!isWarmup) {
+                if (b.alignment !== prevAlignment) {
+                    addLog("log-align", `Alignment shift ${x},${y}: ${prevAlignment} -> ${b.alignment}`);
+                    flashBlock(b, "flash-align");
+                }
+                if (Math.abs(b.pressure - prevPressure) > 0.7) flashBlock(b, "flash-pressure");
+                if (Math.abs(b.stability - prevStability) > 0.12) flashBlock(b, "flash-stability");
+                if (b.institutionalPressure - prevInstitutional > 0.35) {
+                    addLog("log-inst", `Institutional pressure spike at ${x},${y}`);
+                    flashBlock(b, "flash-inst");
+                }
+            }
+
+            totalStability += b.stability;
+            updateBlockClassAndVisual(b);
+        }
+    }
+
+    if (!isWarmup) {
+        for (const id of Object.keys(state.cooldowns)) if (state.cooldowns[id] > 0) state.cooldowns[id]--;
+        state.ops = clamp(state.ops + 0.55, 0, 15);
+    }
+
+    const avgStability = totalStability / (GRID_SIZE * GRID_SIZE);
+    const collapseRisk = Math.round((1 - avgStability) * 100);
+    document.getElementById("collapse-risk").textContent = `${collapseRisk}%`;
+
+    if (!isWarmup) {
+        if (avgStability < 0.22) state.collapseStreak++;
+        else state.collapseStreak = 0;
+
+        if (state.collapseStreak >= 18) {
+            endGame(`NEIGHBORHOOD COLLAPSE\nAverage stability critically low.`);
+        }
+    }
+}
+
+function updateTimeOverlay() {
+    state.dayTime++;
+    const day = (state.dayTime % 320) < 180;
+    overlay.style.background = day ? "rgba(0,0,0,0)" : "rgba(0,0,0,0.34)";
+    document.getElementById("time").textContent = day ? "Day" : "Night";
+}
+
+function spawnEntity(type) {
+    const e = {
+        type,
+        x: Math.random() * GRID_SIZE * CELL_SIZE,
+        y: Math.random() * GRID_SIZE * CELL_SIZE,
+        vx: (Math.random() - 0.5) * 0.9,
+        vy: (Math.random() - 0.5) * 0.9,
+        el: document.createElement("div")
+    };
+    e.el.className = "entity " + type;
+    world.appendChild(e.el);
+    state.entities.push(e);
+}
+
+function updateEntities() {
+    for (const e of state.entities) {
+        e.x += e.vx;
+        e.y += e.vy;
+        if (e.x < 0 || e.x > GRID_SIZE * CELL_SIZE) e.vx *= -1;
+        if (e.y < 0 || e.y > GRID_SIZE * CELL_SIZE) e.vy *= -1;
+        e.el.style.left = e.x + "px";
+        e.el.style.top = e.y + "px";
+    }
+}
+
+function endGame(msg) {
+    if (state.ended) return;
+    state.ended = true;
+    document.getElementById("end-screen").style.display = "flex";
+    document.getElementById("end-screen").textContent = msg + "\n\nRefresh page to restart.";
+    addLog("log-inst", "Simulation halted: collapse condition reached.");
+}
+
+function simTickStep() {
+    if (state.ended) return;
+    state.tick++;
+    document.getElementById("tick").textContent = state.tick;
+
+    tickSimulation(false);
+    updateTimeOverlay();
+    renderCards();
+
+    if (state.inspectedBlock) inspectBlock(state.inspectedBlock, true);
+    else if (state.hoveredBlock) inspectBlock(state.hoveredBlock, false);
+    refreshPreview();
+}
+
+function frameLoop() {
+    updateEntities();
+    requestAnimationFrame(frameLoop);
+}
+
+function boot() {
+    initGrid();
+    seedNeighborhood();
+
+    for (let i = 0; i < 18; i++) spawnEntity("citizen");
+    for (let i = 0; i < 5; i++) spawnEntity("runner");
+    for (let i = 0; i < 3; i++) spawnEntity("masked");
+
+    renderCards();
+    setInterval(simTickStep, SIM_INTERVAL);
+    frameLoop();
+}
+
+boot();
 </script>
-
 </body>
 </html>
